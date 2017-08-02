@@ -6,6 +6,10 @@ Requirement:
 
 python2.7
 
+    pydbg
+    
+    pydasm
+
     captone-windows
   
     pefile
