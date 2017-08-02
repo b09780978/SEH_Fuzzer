@@ -1,12 +1,25 @@
-from PE import *
 import unittest
+import sys
+import os
+
+CURRENT_DIR = os.getcwd()
+PE_DIR = "\\".join(CURRENT_DIR.split("\\")[:-1])
+print "[+] Current position: %s" % (CURRENT_DIR)
+print "[+] PE class position: %s" % (PE_DIR)
+
+# add PE class position
+sys.path.append(PE_DIR)
+from PE import *
+
+print
+print "[+] Start test."
 
 '''
 	TestCase information
 '''
 
-NORMAL_EXE = "..\\Vuln\\fsws.exe"
-NORMAL_DLL = "..\\Vuln\\ImageLoad.dll"
+NORMAL_EXE = PE_DIR + "\\vuln\\fsws.exe"
+NORMAL_DLL = PE_DIR + "\\vuln\\ImageLoad.dll"
 ERROR_EXE = "abc.exe"
 ERROR_DLL = "abc.dll"
 

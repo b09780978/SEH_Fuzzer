@@ -1,4 +1,5 @@
 import pefile
+from capstone import *
 
 '''
 	Windows PE file arch code.
@@ -80,8 +81,10 @@ class PE(object):
 		
 		if self.__parser.OPTIONAL_HEADER.Magic & MagicFlag.PE32:
 			self.__bits = 32
+			self.__bitMode = CS_MODE_32
 		elif self.__parser.OPTIONAL_HEADER.Magic & MagicFlag.PE32plus:
 			self.__bits = 64
+			self.__bitMode = CS_MODE_64
 		
 		self.__dataSections = None
 		self.__execSections = None
@@ -123,14 +126,37 @@ class PE(object):
 	
 	@Arch.setter
 	def Arch(self, flag):
-		self.__Arch = { ArchFlag.IMAGE_FILE_MACHINE_UNKNOWN : "All",
+		self.__Arch = { 
+				 ArchFlag.IMAGE_FILE_MACHINE_UNKNOWN : "All",
 				 ArchFlag.IMAGE_FILE_MACHINE_AMD64 	 : "amd64",
 				 ArchFlag.IMAGE_FILE_MACHINE_I386  	 : "intel",
-				 ArchFlag.IMAGE_FILE_MACHINE_IA64  	 : "ia64" }.get(flag, "unknow")
+				 ArchFlag.IMAGE_FILE_MACHINE_IA64  	 : "ia64"
+				}.get(flag, "unknow")
+				
+		if self.__Arch == "unknow":
+			raise PEError("[-] %s is not arch." % (self.Name))
+				 
+		self.__ArchMode = {
+					ArchFlag.IMAGE_FILE_MACHINE_UNKNOWN : CS_ARCH_ALL,
+					ArchFlag.IMAGE_FILE_MACHINE_AMD64 	 : CS_ARCH_X86,
+					ArchFlag.IMAGE_FILE_MACHINE_I386  	 :  CS_ARCH_X86,
+					ArchFlag.IMAGE_FILE_MACHINE_IA64  	 :  CS_ARCH_X86
+				}.get(flag, None)
+				
+		if self.__ArchMode is None:
+			raise PEError("[-] %s is not support." % (self.Name))
+				
+	@property
+	def ArchMode(self):
+		return self.__ArchMode
 	
 	@property
 	def Bits(self):
 		return self.__bits
+		
+	@property
+	def BitsMode(self):
+		return self.__bitMode
 	
 	@property
 	def DataSections(self):
