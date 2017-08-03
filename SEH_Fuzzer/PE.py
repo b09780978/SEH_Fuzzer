@@ -65,7 +65,6 @@ class PE(object):
 		try:
 			self.__parser = pefile.PE(exe_path, fast_load=True)
 		except:
-			# print "[-] Open %s fail." % (self.Name)
 			self.__parser = None
 			raise PEError("[-] Open %s fail." % (self.Name))
 		
@@ -85,6 +84,8 @@ class PE(object):
 		elif self.__parser.OPTIONAL_HEADER.Magic & MagicFlag.PE32plus:
 			self.__bits = 64
 			self.__bitMode = CS_MODE_64
+		
+		self.__entryPoint = self.__parser.OPTIONAL_HEADER.ImageBase + self.__parser.OPTIONAL_HEADER.AddressOfEntryPoint
 		
 		self.__dataSections = None
 		self.__execSections = None
@@ -168,7 +169,7 @@ class PE(object):
 		
 	@property
 	def EntryPoint(self):
-		return self.__parser.OPTIONAL_HEADER.ImageBase + self.__parser.OPTIONAL_HEADER.AddressOfEntryPoint
+		return self.__entryPoint
 	
 	@property
 	def Format(self):
