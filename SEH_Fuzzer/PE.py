@@ -89,12 +89,20 @@ class PE(object):
 		
 		self.__dataSections = None
 		self.__execSections = None
-		
+
 		self.__getDataSections()
 		self.__getExecSections()
 		
+		self.__IAT = {}
+		self.__EAT = {}
+		
+		self.__parser.parse_data_directories()
+		self.__getEAT()
+		self.__getIAT()
+		
 		self.__parser.close()
 		
+	# Get writable data section.
 	def __getDataSections(self):
 		dataSections = []
 		for section in self.__parser.sections:
@@ -108,6 +116,7 @@ class PE(object):
 				})
 		self.__dataSections = dataSections
 		
+	# Get executable section for ROP gadget.
 	def __getExecSections(self):
 		execSections = []
 		for section in self.__parser.sections:
@@ -120,6 +129,22 @@ class PE(object):
 					"code" : bytes(section.get_data())
 				})
 		self.__execSections = execSections
+
+	# Get EAT(Export Address Table).
+	def __getEAT(self):
+		for symbol in self.__parser.DIRECTORY_ENTRY_EXPORT.symbols:
+			self.__EAT.update({symbol.name : self.__parser.OPTIONAL_HEADER.ImageBase + symbol.address})
+
+	def __getIAT(self):
+		for entry in self.__parser.DIRECTORY_ENTRY_IMPORT:
+			# print entry.dll
+			for symbol in entry.imports:
+			# print "[*] 0x%08x %s." % (symbol.address, symbol.name)
+				self.__IAT.update({symbol.name : symbol.address})
+
+	'''
+		Propertys of PE file.
+	'''
 		
 	@property
 	def Arch(self):
@@ -162,7 +187,11 @@ class PE(object):
 	@property
 	def DataSections(self):
 		return self.__dataSections
-		
+	
+	@property
+	def EAT(self):
+		return self.__EAT
+
 	@property
 	def ExecSections(self):
 		return self.__execSections
@@ -174,6 +203,10 @@ class PE(object):
 	@property
 	def Format(self):
 		return self.__format
+
+	@property
+	def IAT(self):
+		return self.__IAT
 	
 	@property 
 	def Rebase(self):
