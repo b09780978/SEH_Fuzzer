@@ -30,10 +30,10 @@ JmpGadgetFormat = [
 	]
 	
 '''
-	filiter gadget whether contain newline
+	filiter gadget whether contain newline or nullbyte
 '''
 def gadget_filter(gadget):
-	return False if "\x0a" in p32(gadget) else True
+	return False if ("\x0a" in p32(gadget)) or ( "\x00" in p32(gadget)) else True
 	
 class Gadget(dict):
 	def __init__(self, pe):
@@ -147,9 +147,9 @@ def merge_gadgets(gadget_type, new_gadgets, collection):
 
 # Classify all gadget type.
 '''
-	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+
-	| type | pushad | xor | inc | dec | pop | neg | clear | add | addnum | jmpesp |
-	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+
+	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+
+	| type | pushad | xor | inc | dec | pop | neg | clear | add | addnum | jmpesp | nop |
+	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+
 '''
 
 def classify_gadget(all_gadgets, jmp_gadgets, collection):
@@ -339,3 +339,22 @@ def classify_gadget(all_gadgets, jmp_gadgets, collection):
 	for g in jmp_gadgets:
 		new_gadget = { g["vaddr"] : g["gadgets"] }
 		merge_gadgets("jmpesp", new_gadget, collection)
+
+	'''
+		Add nop gadget.
+		+-----+
+		| nop |
+		+-----+
+	'''
+	NOP_ALLOW_INS = [ "nop", "ret", "retf", "retn"]
+	for g in all_gadgets:
+		instruction = g["gadgets"].split(" ; ")
+		check_ok = True
+		for pattern in instruction:
+			if pattern not in NOP_ALLOW_INS:
+				check_ok = False
+				break
+		if check_ok:
+			new_gadget = { g["vaddr"] : g["gadgets"] }
+			merge_gadgets("nop", new_gadget, collection)
+

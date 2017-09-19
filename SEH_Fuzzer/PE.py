@@ -28,6 +28,12 @@ class FileHeaderCharacteristicsFlag:
 class MagicFlag:
 	PE32 	 = 0x10b	# for 32bit
 	PE32plus = 0x20b	# for 64bit
+
+class PESecurityCheck:
+  IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE = 0x0040
+  IMAGE_DLLCHARACTERISTICS_NX_COMPAT = 0x0100
+  IMAGE_DLLCHARACTERISTICS_NO_SEH = 0x0400
+  IMAGE_DLLCHARACTERISTICS_GUARD_CF = 0x4000
 	
 '''
 	Get DLL characteristics.
@@ -84,6 +90,11 @@ class PE(object):
 		elif self.__parser.OPTIONAL_HEADER.Magic & MagicFlag.PE32plus:
 			self.__bits = 64
 			self.__bitMode = CS_MODE_64
+
+		self.__aslr    = True if self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE != 0 else False
+		self.__nx      = True if self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_NX_COMPAT != 0 else False
+		self.__safeseh = True if self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_NO_SEH != 0 else False
+		self.__cfg	   = True if self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_GUARD_CF != 0 else False
 		
 		self.__entryPoint = self.__parser.OPTIONAL_HEADER.ImageBase + self.__parser.OPTIONAL_HEADER.AddressOfEntryPoint
 		
@@ -184,6 +195,10 @@ class PE(object):
 	@property
 	def ArchMode(self):
 		return self.__ArchMode
+
+	@property
+	def ASLR(self):
+		return self.__aslr
 	
 	@property
 	def Bits(self):
@@ -192,6 +207,10 @@ class PE(object):
 	@property
 	def BitsMode(self):
 		return self.__bitMode
+
+	@property
+	def CFG(self):
+		return self.__cfg
 	
 	@property
 	def DataSections(self):
@@ -216,14 +235,22 @@ class PE(object):
 	@property
 	def IAT(self):
 		return self.__IAT
-	
+
+	@property
+	def Name(self):
+		return self.__name
+
+	@property
+	def NX(self):
+		return self.__nx
+
 	@property 
 	def Rebase(self):
 		return self.__rebase
 		
 	@property
-	def Name(self):
-		return self.__name
+	def SafeSEH(self):
+		return self.__safeseh
 	
 	@property
 	def Type(self):
