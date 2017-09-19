@@ -131,16 +131,25 @@ class PE(object):
 		self.__execSections = execSections
 
 	# Get EAT(Export Address Table).
-	def __getEAT(self):
-		for symbol in self.__parser.DIRECTORY_ENTRY_EXPORT.symbols:
-			self.__EAT.update({symbol.name : self.__parser.OPTIONAL_HEADER.ImageBase + symbol.address})
+	def __getEAT(self):	
+		try:
+			for symbol in self.__parser.DIRECTORY_ENTRY_EXPORT.symbols:
+				self.__EAT.update({symbol.name : self.__parser.OPTIONAL_HEADER.ImageBase + symbol.address})
+		# No Export symbols.
+		except AttributeError:
+			pass
 
+	# Get IAT(Import address Table).
 	def __getIAT(self):
-		for entry in self.__parser.DIRECTORY_ENTRY_IMPORT:
-			# print entry.dll
-			for symbol in entry.imports:
-			# print "[*] 0x%08x %s." % (symbol.address, symbol.name)
-				self.__IAT.update({symbol.name : symbol.address})
+		try:
+			for entry in self.__parser.DIRECTORY_ENTRY_IMPORT:
+				# print entry.dll
+				for symbol in entry.imports:
+				# print "[*] 0x%08x %s." % (symbol.address, symbol.name)
+					self.__IAT.update({symbol.name : symbol.address})
+		# No Import symbols.
+		except AttributeError:
+			pass
 
 	'''
 		Propertys of PE file.
