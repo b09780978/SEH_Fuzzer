@@ -131,8 +131,9 @@ def check_gadget_pass(gadgets, allow, not_allow):
 
 			if check_ok:
 				for not_allow_pattern in not_allow:
-					if pattern.find(not_allow_pattern)!=-1:
+					if pattern.startswith(not_allow_pattern):
 						statu = False
+						break
 			else:
 				statu = False
 		counter += 1
@@ -147,9 +148,9 @@ def merge_gadgets(gadget_type, new_gadgets, collection):
 
 # Classify all gadget type.
 '''
-	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+
-	| type | pushad | xor | inc | dec | pop | neg | clear | add | addnum | jmpesp | nop |
-	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+
+	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+-----+
+	| type | pushad | xor | inc | dec | pop | neg | clear | add | addnum | jmpesp | nop | SEH |
+	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+-----+
 '''
 
 def classify_gadget(all_gadgets, jmp_gadgets, collection):
@@ -288,9 +289,9 @@ def classify_gadget(all_gadgets, jmp_gadgets, collection):
 	for register1 in REGISTER:
 		for register2 in REGISTER:
 			if register1!=register2:
-				ADD_ALLOW_INS = [ "nop", "ret", "pop ", "inc ", "dec ", "and", "or ", "xor ", "adc ", "sub ", "fpatan", "test ", "cmp " ]
+				ADD_ALLOW_INS = [ "nop", "ret", "pop ", "inc ", "dec ", "and", "or ", "xor ","add ", "adc ", "sub ", "fpatan", "test ", "cmp ", "mov eax" ]
 				ADD_NOT_ALLOW_INS = [ "pop " + register1, "mov " + register1 + ",", "xchg " + register1 + ",", "xor " + register1, "lea " + register1 + ",",
-								"ds: ", "ss: ", "dec esp", "inc esp"]
+								"ds: ", "ss: ", "dec esp", "inc esp", "mov eax, dword ptr [eax" ]
 				head = [ "add " + register1 + ", " + register2, "adc " + register1 + ", " + register2  ]
 				for g in all_gadgets:
 					instructions = g["gadgets"]
@@ -358,3 +359,23 @@ def classify_gadget(all_gadgets, jmp_gadgets, collection):
 			new_gadget = { g["vaddr"] : g["gadgets"] }
 			merge_gadgets("nop", new_gadget, collection)
 
+	'''
+		Add SEH pop pop ret gadget.
+		+-----+
+		| SEH |
+		+-----+
+	'''
+
+	SEH_ALLOW_INS = ["add esp, 8 ; ret", "add esp,4 ; add esp, 4 ; ret"]
+	for register1 in REGISTER:
+		SEH_ALLOW_INS.append("add esp,4 ; pop " + register1 + " ; ret")
+		SEH_ALLOW_INS.append("pop " + register1 + "add esp,4 ; ret")
+		for register2 in REGISTER:
+			SEH_ALLOW_INS.append("pop " + register1 + " ; pop " + register2 + " ; ret")
+
+	for g in all_gadgets:
+		instruction = g["gadgets"]
+		for pattern in SEH_ALLOW_INS:
+			if instruction.startswith(pattern):
+				new_gadget = { g["vaddr"] : g["gadgets"]}
+				merge_gadgets("seh", new_gadget, collection)
