@@ -52,6 +52,8 @@ class SectionFlag:
 	IMAGE_SCN_MEM_EXECUTE = 0x20000000
 	IMAGE_SCN_MEM_READ = 0x40000000
 	IMAGE_SCN_MEM_WRITE = 0x80000000
+
+IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG = 10
 	
 '''
 	PE parse error exception, will add a message about error.
@@ -91,10 +93,18 @@ class PE(object):
 			self.__bits = 64
 			self.__bitMode = CS_MODE_64
 
-		self.__aslr    = True if self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE != 0 else False
-		self.__nx      = True if self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_NX_COMPAT != 0 else False
-		self.__safeseh = True if self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_NO_SEH != 0 else False
-		self.__cfg	   = True if self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_GUARD_CF != 0 else False
+		self.__base = self.__parser.OPTIONAL_HEADER.ImageBase
+		self.__basesize = self.__parser.OPTIONAL_HEADER.SizeOfImage
+
+		# check protection
+		self.__aslr    = True if (self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE) != 0 else False
+		self.__nx      = True if (self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_NX_COMPAT) != 0 else False
+		self.__cfg	   = True if (self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_GUARD_CF) != 0 else False
+
+		if ( (self.__parser.OPTIONAL_HEADER.DllCharacteristics & PESecurityCheck.IMAGE_DLLCHARACTERISTICS_NO_SEH) != 0 ) and (self.__parser.OPTIONAL_HEADER.DataDirectory[IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG].VirtualAddress != 0) and (self.__parser.OPTIONAL_HEADER.DataDirectory[IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG].Size != 0):
+			self.__safeseh = True
+		else:
+			self.__safeseh = False
 		
 		self.__entryPoint = self.__parser.OPTIONAL_HEADER.ImageBase + self.__parser.OPTIONAL_HEADER.AddressOfEntryPoint
 		
@@ -199,6 +209,14 @@ class PE(object):
 	@property
 	def ASLR(self):
 		return self.__aslr
+
+	@property
+	def Base(self):
+		return self.__base
+
+	@property
+	def BaseSize(self):
+		return self.__basesize
 	
 	@property
 	def Bits(self):

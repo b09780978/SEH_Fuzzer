@@ -60,7 +60,7 @@ class Gadget(dict):
 					for instruction in pattern:
 						gadget += (instruction.mnemonic + " " + instruction.op_str + " ; ").replace("  ", " ")
 
-					if len(gadget)>0 and gadget.startswith(targetGadget[OPCODE]):
+					if len(gadget)>0 and gadget.startswith(targetGadget[OPCODE]) and gadget_filter(start):
 						gadget = gadget[:-3]
 						
 						Gadgets += [

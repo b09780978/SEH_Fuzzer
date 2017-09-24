@@ -38,16 +38,3 @@ def pattern_find(pattern, max_length=5000):
 	origin_pattern = pattern_create(max_length)
 	offset = origin_pattern.find(pattern)
 	return offset
-
-# Use exe path to get dll that isn't belongs system
-def getModuleList(exe_path):
-	file_prefix = "\\".join(exe_path.split("\\")[1:-1])
-	disk = exe_path[0:2]
-
-	module_list = []
-	for root, dirs, files in os.walk(disk + "\\" + file_prefix):
-		for f in files:
-			if f.endswith(".dll"):
-				dll_name = root + "\\" + f
-				module_list.append(dll_name)
-	return module_list
