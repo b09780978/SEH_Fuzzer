@@ -13,8 +13,8 @@ OPCODE		 = 3
 RetGadgetFormat = [
 	[b"\xc3", 1, 1, "ret"],			 # ret(near)
 	[b"\xcb", 1, 1, "ret"],			 # ret(far)
-	[b"\xc2{\x00-\xff}", 3, 1, "ret"],  # ret imm16(near)
-	[b"\xca{\x00-\xff}", 3, 1, "ret"],  # ret imm16(far)
+	[b"\xc2[\x00-\xff]{2}", 3, 1, "ret"],  # ret imm16(near)
+	[b"\xca[\x00-\xff]{2}", 3, 1, "ret"],  # ret imm16(far)
 	]
 	
 SysGadgetFormat = [
@@ -82,14 +82,15 @@ class Gadget(dict):
 				for position in retPostions:
 					for deep in xrange(MAX_DEPTH+1):
 						start = section["vaddr"] + position - deep * targetGadget[CODE_SIZE]
+
 						if (start % targetGadget[CODE_SIZE] == 0) and gadget_filter(start):
 							pattern = self.__disassembler.disasm( code[ position - deep * targetGadget[CODE_SIZE] : position + targetGadget[PATTERN_SIZE] ], 0 )
 							gadget = ""
 							
 							for instruction in pattern:
 								gadget += (instruction.mnemonic + " " + instruction.op_str + " ; ").replace("  ", " ")
-							
-							if len(gadget)>0 and targetGadget[OPCODE] in gadget.split(" ; ")[-2] :
+
+							if len(gadget)>0 and gadget.split(" ; ")[-2].find(targetGadget[OPCODE])!=-1 and gadget.count("ret")==1 and gadget.find("ret 0x")==-1 and gadget.find("ret -")==-1 and gadget.find("retf 0x")==-1 and gadget.find("retf -")==-1 and gadget.find("ret 1") == -1 and gadget.find("retf 1") == -1 and gadget.find("ret 2") == -1 and gadget.find("retf 2") == -1 and gadget.find("ret 3") == -1 and gadget.find("retf 3") == -1 and gadget.find("ret 4") == -1 and gadget.find("retf 4") == -1:
 								gadget = gadget[:-3]
 						
 								Gadgets += [
@@ -148,9 +149,9 @@ def merge_gadgets(gadget_type, new_gadgets, collection):
 
 # Classify all gadget type.
 '''
-	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+-----+
-	| type | pushad | xor | inc | dec | pop | neg | clear | add | addnum | jmpesp | nop | SEH |
-	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+-----+
+	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+-----+--------+--------+
+	| type | pushad | xor | inc | dec | pop | neg | clear | add | addnum | jmpesp | nop | SEH | pickup | movreg |
+	+------+--------+-----+-----+-----+-----+-----+-------+-----+--------+--------+-----+-----+--------+--------+
 '''
 
 def classify_gadget(all_gadgets, jmp_gadgets, collection):
@@ -170,11 +171,14 @@ def classify_gadget(all_gadgets, jmp_gadgets, collection):
 		# Change data in stack head or bottom.
 		PUSHAD_ALLOW_INS.append("mov %s, dword ptr ds:[esp" % register1)
 		PUSHAD_ALLOW_INS.append("mov %s, dword ptr ss:[esp" % register1)
+		PUSHAD_ALLOW_INS.append("mov %s, dword ptr [esp" % register1)
 		PUSHAD_ALLOW_INS.append("mov %s, dword ptr ds:[ebp" % register1)
 		PUSHAD_ALLOW_INS.append("mov %s, dword ptr ss:[ebp" % register1)
+		PUSHAD_ALLOW_INS.append("mov %s, dword ptr [ebp" % register1)
 		# Put virtualprotect ptr to esi
 		PUSHAD_ALLOW_INS.append("mov %s, dword ptr ds:[esi" % register1)
 		PUSHAD_ALLOW_INS.append("mov %s, dword ptr ss:[esi" % register1)
+		PUSHAD_ALLOW_INS.append("mov %s, dword ptr [esi" % register1)
 		
 		for register2 in REGISTER:
 			PUSHAD_ALLOW_INS.append("mov %s, %s" % (register1, register2))
@@ -271,8 +275,8 @@ def classify_gadget(all_gadgets, jmp_gadgets, collection):
 		Add clear register.
 	'''
 	for register1 in REGISTER:
-		CLEAR_ALLOW_INS = [ "xor " + register1 + "," + register1 + " ; ret", "mov " + register1 + ",0xffffffff ; inc " + register1 + " ; ret",
-						"sub " + register1 + "," + register1 + " ; ret", "push 0 ; pop " + register1 + " ; ret", "imul " + register1 + "," + register1 + ",0 ; ret" ]
+		CLEAR_ALLOW_INS = [ "xor " + register1 + ", " + register1 + " ; ret", "mov " + register1 + ", 0xffffffff ; inc " + register1 + " ; ret",
+						"sub " + register1 + ", " + register1 + " ; ret", "push 0 ; pop " + register1 + " ; ret", "imul " + register1 + ", " + register1 + ", 0 ; ret" ]
 		for g in all_gadgets:
 			instructions = g["gadgets"]
 			for pattern in CLEAR_ALLOW_INS:
@@ -379,3 +383,62 @@ def classify_gadget(all_gadgets, jmp_gadgets, collection):
 			if instruction.startswith(pattern):
 				new_gadget = { g["vaddr"] : g["gadgets"]}
 				merge_gadgets("seh", new_gadget, collection)
+
+	'''
+		Add pickup gadget.
+		+----------------------------+
+		| mov reg1, dword ptr [reg2] |
+		+----------------------------+
+	'''
+
+	PICKUP_ALLOW_INS = [ "nop", "ret", "inc ", "dec ", "and ", "or ", "xor ", "mov ", "lea ", "add ", "sub ", "adc ",
+				"pop ", "fpatan", "test ", "cmp " ]
+	PICKUP_NOT_ALLOW_INS = [ "mov esp", "xor esp", "lea esp", "mov dword ptr", "dec esp", "inc esp", "call 0x", "jmp", "jne", "leave" ]
+	for register1 in REGISTER:
+		for register2 in REGISTER:
+			PICKUP_REGISTER1 = PICKUP_ALLOW_INS + [ "mov " + register1 + ", dword ptr [" + register2 + "]" ]
+			PICKUP_REGISTER1.append("mov " + register1 + ", dword ptr ss: [" + register2 + "]")
+			PICKUP_REGISTER1.append("mov " + register1 + ", dword ptr ds: [" + register2 + "]")
+			header = []
+			header.append("mov " + register1 + ", dword ptr [" + register2 + "]")
+			header.append("mov " + register1 + ", dword ptr ss: [" + register2 + "]")
+			header.append("mov " + register1 + ", dword ptr ds: [" + register2 + "]")
+			PICKUP_NOT_REGISTER1 = PICKUP_NOT_ALLOW_INS + [ "pop " + register1, "lea " + register1 + ", e"]
+			pickupType = "pickup" + register1 + register2
+			for g in all_gadgets:
+				instructions = g["gadgets"]
+				for head in header:
+					if instructions.startswith(head) and instructions.count("dword ptr")==1:
+						# print "check %s." % instructions
+						if check_gadget_pass(instructions, PICKUP_REGISTER1, PICKUP_NOT_REGISTER1):
+							new_gadget = { g["vaddr"] : g["gadgets"] }
+							merge_gadgets(pickupType, new_gadget, collection)
+
+	'''
+		Add movreg gadget.
+		+----------------+
+		| mov reg1, reg2 |
+		+----------------+
+	'''
+	MOVREG_ALLOW_INS = ["nop", "ret", "pop ", "inc ", "dec ", "add ", "sub ", "and ", "or ", "xor ", "xchg", "fpatan", "cmp ", "test " ]
+	MOVREG_NOT_ALLOW_INS = [ "ds:", "ss:", "pushad", "pushal", "popad", "popal", "dec esp", "inc esp", "call 0x", "jmp", "leave", "jne"]
+			# "ret 0x", "ret -", "ret 1", "ret 4", "ret 8", "retf -0x", "retf 0x", "retf 1" "retf 4", "retf 8" ]
+	for register1 in REGISTER:
+		for register2 in REGISTER:
+			MOV_TYPE = "mov"+register1+register2
+			MOVREG_ALLOW = MOVREG_ALLOW_INS + [ "mov " + register1 + ", " + register2 ]
+			MOVREG_ALLOW.append("lea " + register1 + ", " + register2)
+			MOVREG_ALLOW.append("xchg " + register1 + ", " + register2)
+			MOVREG_ALLOW.append("xchg " + register2 + ", " + register1)
+			MOVREG_NOT_ALLOW = MOVREG_NOT_ALLOW_INS + [ "pop " + register2 ]
+			MOVREG_NOT_ALLOW += [ "lea " + register2, "mov " + register2, "xor " + register2, "and " + register2]
+			header = []
+			header.append("lea " + register1 + ", " + register2)
+			header.append("xchg " + register1 + ", " + register2)
+			header.append("xchg " + register2 + ", " + register1)
+			for g in all_gadgets:
+				instructions = g["gadgets"]
+				for head in header:
+					if instructions.startswith(head) and check_gadget_pass(instructions, MOVREG_ALLOW, MOVREG_NOT_ALLOW):
+						new_gadget = { g["vaddr"] : g["gadgets"] }
+						merge_gadgets(MOV_TYPE, new_gadget, collection)
