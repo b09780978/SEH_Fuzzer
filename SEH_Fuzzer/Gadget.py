@@ -90,7 +90,7 @@ class Gadget(dict):
 							for instruction in pattern:
 								gadget += (instruction.mnemonic + " " + instruction.op_str + " ; ").replace("  ", " ")
 
-							if len(gadget)>0 and gadget.split(" ; ")[-2].find(targetGadget[OPCODE])!=-1 and gadget.count("ret")==1 and gadget.find("ret 0x")==-1 and gadget.find("ret -")==-1 and gadget.find("retf 0x")==-1 and gadget.find("retf -")==-1 and gadget.find("ret 1") == -1 and gadget.find("retf 1") == -1 and gadget.find("ret 2") == -1 and gadget.find("retf 2") == -1 and gadget.find("ret 3") == -1 and gadget.find("retf 3") == -1 and gadget.find("ret 4") == -1 and gadget.find("retf 4") == -1:
+							if len(gadget)>0 and gadget.split(" ; ")[-2].find(targetGadget[OPCODE])!=-1 and gadget.find("leave")==-1 and gadget.count("ret")==1 and gadget.find("ret 0x")==-1 and gadget.find("ret -")==-1 and gadget.find("retf 0x")==-1 and gadget.find("retf -")==-1 and gadget.find("ret 1") == -1 and gadget.find("retf 1") == -1 and gadget.find("ret 2") == -1 and gadget.find("retf 2") == -1 and gadget.find("ret 3") == -1 and gadget.find("retf 3") == -1 and gadget.find("ret 4") == -1 and gadget.find("retf 4") == -1:
 								gadget = gadget[:-3]
 						
 								Gadgets += [
@@ -313,7 +313,7 @@ def classify_gadget(all_gadgets, jmp_gadgets, collection):
 	for register1 in REGISTER + ["esp"]:
 		ADDNUM_ALLOW_INS = [ "nop" , "ret" , "pop ", "inc ", "dec ", "and", "or ", "push ", "adc ", "sub ", "fpatan", "test ", "cmp " ]
 		ADDNUM_NOT_ALLOW_INS = ["pop " + register1, "mov " + register1 + ",", "xchg " + register1 + ",", "xor " + register1, "lea " + register1 + ",",
-							"ds:", "ss:", "dec esp" ]
+							"ds:", "ss:", "dec esp", "leave" ]
 		head = [ "add " + register1 + ",", "adc " + register1 + ",", "sub " + register1 + ","]
 		for g in all_gadgets:
 			instructions = g["gadgets"]

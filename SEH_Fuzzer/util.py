@@ -15,11 +15,12 @@ def pStr(word, size=4):
         value = value*16*16 + ord(c)
     return value
 
-def pattern_create(max_length=5000):
+def pattern_create(max_length=5000, append=False):
 	charset1 = string.ascii_uppercase
 	charset2 = string.ascii_lowercase
 	charset3 = string.digits
-	charset3 += ",.;+=-_!&()#@({})[]%"
+	if append:
+		charset3 += ",.;+=-_!&()#@({})[]%"
 	pattern = []
 	
 	while len(pattern)<max_length:
@@ -35,7 +36,7 @@ def pattern_create(max_length=5000):
 						
 	return "".join(pattern)
 
-def pattern_find(pattern, max_length=5000):
+def pattern_find(pattern, max_length=5000, append=False):
 	pattern = p32(pattern)
 	origin_pattern = pattern_create(max_length)
 	offset = origin_pattern.find(pattern)
@@ -153,6 +154,31 @@ def getPickupChain(collection, target_register, fptr):
 
 	return pickup_chain
 
+'''
++-------------------------+
+| virtualprotect strategy |
++-------------------------+
+pushad
+	+-----+--------------------------+--------------------------+
+	| Reg | method1					 | method2					|
+	+-----+--------------------------+--------------------------+
+	| edi | ptr to ret 				 | ptr to ret 				|
+	+-----+--------------------------+--------------------------+
+	| esi |	ptr to &virtualprotect() | ptr to jmp [eax]			|
+	+-----+--------------------------+--------------------------+
+	| ebp | ptr to jmp esp			 | pop 4 bytes 				|
+	+-----+--------------------------+--------------------------+
+	| esp | arg1					 | arg1						|
+	+-----+--------------------------+--------------------------+
+	| ebx | arg2					 | arg2						|
+	+-----+--------------------------+--------------------------+
+	| edx | arg3					 | arg3						|
+	+-----+--------------------------+--------------------------+
+	| ecx | arg4					 | arg4						|
+	+-----+--------------------------+--------------------------+
+	| eax | nop * 4					 | ptr to &virtualprotect() |
+	+-----+--------------------------+--------------------------+
+'''	
 # Generate a rop chain to bypass DEP.
 def generate_ropchain(collection, IATs, wAddrs):
 	virtualprotect = [ ("esi", "func"), ("ebp", "jmp"), ("ebx", "size"), ("edx", "rwx"),
