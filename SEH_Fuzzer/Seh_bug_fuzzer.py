@@ -10,7 +10,7 @@ from pydbg.defines import *
 
 from util import *
 
-PICKLE_NAME = "fsws_phase1.pkl"
+PICKLE_NAME = "crash_info.pkl"
 
 exe_path = "D:\\testPoc\\Easy File Sharing Web Server\\fsws.exe"
 
@@ -20,7 +20,6 @@ import time
 host, port = "127.0.0.1", 80
 
 global Running
-global Crash
 global lock
 global chance
 global MAX_OFFSET
@@ -28,7 +27,6 @@ global OFFSET
 
 chance = 2
 Running = True
-Crash = False
 lock = threading.Lock()
 
 def check_access_validation(dbg):
@@ -43,8 +41,11 @@ def check_access_validation(dbg):
 			Running = False
 			if chance==0:
 				Running = False
-				seh, nseh = dbg.seh_unwind()[0]
-				seh_offset = pattern_find(seh, MAX_OFFSET)
+				for seh_handler, nseh_handler in dbg.seh_unwind():
+					seh, nseh = seh_handler, nseh_handler
+					seh_offset = pattern_find(seh, MAX_OFFSET)
+					if seh_offset!=-1:
+						break
 				
 				print "[+] crash in %d words" % OFFSET
 				print "[+] seh offset %s." % seh_offset

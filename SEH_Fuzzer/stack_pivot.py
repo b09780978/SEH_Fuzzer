@@ -10,8 +10,9 @@ from pydbg.defines import *
 
 from util import *
 
-LAST_PICKLE_NAME = "fsws_phase1.pkl"
-PICKLE_NAME = "fsws_phase3.pkl"
+GADGET_PICKLE = "gadgets.pkl"
+LAST_PICKLE_NAME = "crash_info.pkl"
+PICKLE_NAME = "stackpivot.pkl"
 
 exe_path = "D:\\testPoc\\Easy File Sharing Web Server\\fsws.exe"
 
@@ -76,7 +77,7 @@ def check_access_validation(dbg):
 
 				deep, fix = find_stackpivot(stack_info)
 				move_up_list = []
-				with open("fsws.pkl", "rb") as local_file:
+				with open(GADGET_PICKLE, "rb") as local_file:
 					gadgets = cPickle.load(local_file)
 					for addr, insturctions in gadgets["addnum"].items():
 						if insturctions.startswith("add esp,") and insturctions.find("pop") == -1:

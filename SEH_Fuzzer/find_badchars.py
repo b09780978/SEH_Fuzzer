@@ -10,8 +10,8 @@ from pydbg.defines import *
 
 from util import *
 
-LAST_PICKLE_NAME = "fsws_phase1.pkl"
-PICKLE_NAME = "fsws_phase2.pkl"
+LAST_PICKLE_NAME = "crash_info.pkl"
+PICKLE_NAME = "badchars.pkl"
 
 exe_path = "D:\\testPoc\\Easy File Sharing Web Server\\fsws.exe"
 
