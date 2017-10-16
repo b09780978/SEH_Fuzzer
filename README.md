@@ -10,6 +10,6 @@ python2.7
     
     pydasm
 
-    captone-windows
+    capstone-windows
   
     pefile
