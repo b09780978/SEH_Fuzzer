@@ -13,7 +13,8 @@ from pydbg.defines import *
 import cPickle
 import random
 
-PICKLE_GADGET = "fsws.pkl"
+PICKLE_GADGET = "gadgets.pkl"
+ROPCHAIN = "ropchain.pkl"
 
 exe_path = "D:\\testPoc\\Easy File Sharing Web Server\\fsws.exe"
 
@@ -62,6 +63,7 @@ def getRopGadgetAndIATAndWriteAddress(dbg, ModulesList):
 		if (not safeSEH) and (not ASLR):
 			module_name = module.lower()
 			Rebase = True
+			# Check whether module Rebase is open.
 			for mod in dbg.enumerate_modules():
 				if module_name.endswith(mod[0].lower()) and mod[1] == pe.Base:
 					Rebase = False
@@ -109,7 +111,8 @@ class Fuzzer(object):
 			'''
 			print "[+] Get no protect modules."
 			global PICKLE_GADGET
-			PICKLE_GADGET = self.exe_path.split("\\")[-1].replace(".exe", ".pkl")
+			# PICKLE_GADGET = self.exe_path.split("\\")[-1].replace(".exe", ".pkl")
+			
 
 			# if first analysis.
 			if not os.path.isfile(PICKLE_GADGET):
@@ -130,6 +133,8 @@ class Fuzzer(object):
 			
 			# cPickle.dump()
 			rop_chain = generate_ropchain(collect_gadgets, IAT, wriatableAddress)
+			with open(ROPCHAIN, "wb") as local_file:
+				cPickle.dump(rop_chain, local_file)
 			print
 			print "[+] ROP Chain"
 			print "ropchain = [ "
